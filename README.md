@@ -28,7 +28,7 @@ Now initialize it using:
   ```
   
 ## Usage
-To use any block in the marketplace, just copy it's code snippet and paste it in your code. For example, the following is the snippet for the **Delivery.sendSMS** block:
+To use any block in the marketplace, just copy it's code snippet and paste it in your code. For example, the following is the snippet for the **Calculate.add** block:
 
   ```java
     Map<String, Argument> body = new HashMap<String, Argument>();
@@ -79,7 +79,7 @@ The following code will call the block MicrosoftComputerVision.analyzeImage with
   ```
 
 #### Post File
-If the file is locally stored, you can read it using `CURLFile` and pass the read stream to the block, like the following:
+If the file is locally stored, you can read it and pass the read stream to the block, but notice that we used `files` flag instead of `data` for "image" argument:
 
   ```java  
 	Map < String, Argument > body = new HashMap < String, Argument > ();
