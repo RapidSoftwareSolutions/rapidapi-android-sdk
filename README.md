@@ -10,7 +10,7 @@ RapidAPI is the world's first opensource API marketplace. It allows developers t
 
   ```java
     dependencies {
-        classpath 'com.rapidapi:rapidconnect-android:0.1'
+        compile 'com.rapidapi:rapidconnect-android:0.1'
     }
   ```
 
@@ -18,7 +18,7 @@ RapidAPI is the world's first opensource API marketplace. It allows developers t
 Then, import package in your code:
 
   ```java
-  import com.rapidapi.rapidconnect-android.RapidApiConnect;
+  import com.rapidapi.rapidconnect.RapidApiConnect;
   ```
     
 Now initialize it using:
