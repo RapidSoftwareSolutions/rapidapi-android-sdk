@@ -98,6 +98,42 @@ If the file is locally stored, you can read it and pass the read stream to the b
 	 System.out.println("Error: " + e);
 	}
   ```
+  
+#### Webhook Events
+After setting up the webhook, you can listen to real-time events via websockets like so:
+
+```java
+    class Callbacks implements RapidApiConnect.WebhookEvents {
+        public void onMessage(JsonElement msg) {
+            System.out.println("Webhook event: " + msg);
+        }
+
+        public void onClose(int code, String reason) {
+            System.out.println("Closed connection, code: " + code);
+        }
+
+        public void onError(Exception e) {
+            System.out.println("Error: " + e);
+        }
+    }
+    
+    protected Map doInBackground(String... params) {
+        RapidApiConnect connect = new RapidApiConnect("Dashboard", "0b7f82c1-cf1d-4e02-af9a-de129afe54b2");
+
+        Map<String, String> parameters = new HashMap<String, String>();
+        Map<String, Object> response = new HashMap<String, Object>();
+        Callbacks callbacks = new Callbacks();
+        parameters.put("token", "ydt3vFyVEoW51ZFCC2i5QKab");
+        try {
+            response = connect.listen("Slack", "slashCommand", parameters, callbacks);
+            if(response.get("success") != null) {
+                System.out.println(response);
+            }
+        } catch(Exception e) {
+            System.out.println("!!!Error: " + e);
+        }
+        return response;
+    }
         
 ##Issues:
 

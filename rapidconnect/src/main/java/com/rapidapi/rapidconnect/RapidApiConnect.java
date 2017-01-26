@@ -23,6 +23,11 @@ public class RapidApiConnect {
   private final String project;
   private final String key;
 
+    public interface WebhookEvents {
+        void onMessage(JsonElement msg);
+        void onClose(int code, String reason);
+    };
+    
   public RapidApiConnect(String project, String key) {
     this.client = new OkHttpClient();
     this.project = project;
@@ -111,4 +116,96 @@ public class RapidApiConnect {
       }
     }
   }
+
+    public Void listen(String pack, String block, Map<String, Argument> parameters) throws IOException {
+        Map<String, Object>result = new HashMap<>();
+
+        RequestBody requestBody;
+        if (parameters == null || parameters.isEmpty()) {
+            requestBody = EMPTY_REQUEST_BODY;
+        } else {
+            MultipartBody.Builder builder = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM);
+            Set<Map.Entry<String, Argument>> entrySet = body.entrySet();
+            for (Map.Entry<String, Argument> entry : entrySet) {
+                Argument argument = entry.getValue();
+                if ("data".equals(argument.getType())) {
+                    builder.addFormDataPart(entry.getKey(), argument.getValue());
+                }
+            }
+            requestBody = builder.build();
+        }
+
+        String userId = pack + "." + block + "_" + this.project + ":" + this.key;
+        Request request = new Request.Builder()
+            .url("http://localhost:4000/api/get_token?user_id=" + userId)
+            .addHeader("User-Agent", "RapidAPIConnect_Java")
+            .addHeader("Authorization", Credentials.basic(this.project, this.key))
+            .get()
+            .build();
+
+        try (Response response = this.client.newCall(request).execute()) {
+            System.out.println(response.body().string());
+        }
+    }
+
+    
+    public Map listen(String pack, String block, Map<String, String> parameters, final WebhookEvents callbacks) throws IOException {
+        Map<String, Object>result =  new HashMap<>();
+        final Gson gson = new Gson();
+        final String userId = pack + "." + block + "_" + this.project + ":" + this.key;
+        Request request = new Request.Builder()
+                .url("http://192.168.1.238:4000/api/get_token?user_id=" + userId + "&params=" + gson.toJson(parameters))
+                .addHeader("User-Agent", "RapidAPIConnect_Java")
+                .addHeader("Authorization", Credentials.basic(this.project, this.key))
+                .get()
+                .build();
+
+        try (Response response = this.client.newCall(request).execute()) {
+            Map<String, Object> map = gson.fromJson(response.body().string(), new TypeToken<Map<String, Object>>(){}.getType());
+            URI uri;
+            try {
+                String url = "ws://192.168.1.238:4000/socket/websocket?token=" + map.get("token");
+                uri = new URI(url);
+                WebSocketClient mWebSocketClient = new WebSocketClient(uri, new Draft_10()) {
+                    @Override
+                    public void onOpen(ServerHandshake serverHandshake) {
+                        Log.i("Websocket", "Opened");
+                        Map join = new HashMap<String, String>();
+                        join.put("topic", "users_socket:" + userId);
+                        join.put("event", "phx_join");
+                        join.put("payload", new HashMap<>());
+                        join.put("ref", 1);
+                        this.send(gson.toJson(join));
+                    }
+
+                    @Override
+                    public void onMessage(String s) {
+                        //Map<String, Object> message = gson.fromJson(s, new TypeToken<Map<String, Object>>(){}.getType());
+                        JsonElement message = new JsonParser().parse(s);
+                        if (!message.getAsJsonObject().get("event").getAsString().startsWith("phx_")) {
+                            JsonElement body = message.getAsJsonObject().get("payload").getAsJsonObject().get("body");
+                            callbacks.onMessage(body);
+                        }
+                    }
+
+                    @Override
+                    public void onClose(int i, String s, boolean b) {
+                        callbacks.onClose(i, s);
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Log.i("Websocket", "Error " + e.getMessage());
+                    }
+                };
+                mWebSocketClient.connect();
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+            }
+
+        }
+
+        return result;
+    }
 }
