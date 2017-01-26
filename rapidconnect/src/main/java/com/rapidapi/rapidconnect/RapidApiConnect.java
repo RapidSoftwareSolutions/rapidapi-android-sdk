@@ -1,10 +1,18 @@
 package com.rapidapi.rapidconnect;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
+
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.drafts.Draft_10;
+import org.java_websocket.handshake.ServerHandshake;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +34,7 @@ public class RapidApiConnect {
     public interface WebhookEvents {
         void onMessage(JsonElement msg);
         void onClose(int code, String reason);
+        void onError(Exception e);
     };
     
   public RapidApiConnect(String project, String key) {
@@ -55,6 +64,10 @@ public class RapidApiConnect {
   {
     return RapidApiConnect.getBaseUrl() + "/" + pack + "/" + block;
   }
+
+    private static String callbackBaseUrl() { return "https://webhooks.rapidapi.io"; }
+
+    private static String websocketBaseUrl() { return "wss://webhooks.rapidapi.io"; }
 
   /**
   * Call a block
@@ -116,46 +129,14 @@ public class RapidApiConnect {
       }
     }
   }
-
-    public Void listen(String pack, String block, Map<String, Argument> parameters) throws IOException {
-        Map<String, Object>result = new HashMap<>();
-
-        RequestBody requestBody;
-        if (parameters == null || parameters.isEmpty()) {
-            requestBody = EMPTY_REQUEST_BODY;
-        } else {
-            MultipartBody.Builder builder = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM);
-            Set<Map.Entry<String, Argument>> entrySet = body.entrySet();
-            for (Map.Entry<String, Argument> entry : entrySet) {
-                Argument argument = entry.getValue();
-                if ("data".equals(argument.getType())) {
-                    builder.addFormDataPart(entry.getKey(), argument.getValue());
-                }
-            }
-            requestBody = builder.build();
-        }
-
-        String userId = pack + "." + block + "_" + this.project + ":" + this.key;
-        Request request = new Request.Builder()
-            .url("http://localhost:4000/api/get_token?user_id=" + userId)
-            .addHeader("User-Agent", "RapidAPIConnect_Java")
-            .addHeader("Authorization", Credentials.basic(this.project, this.key))
-            .get()
-            .build();
-
-        try (Response response = this.client.newCall(request).execute()) {
-            System.out.println(response.body().string());
-        }
-    }
-
     
     public Map listen(String pack, String block, Map<String, String> parameters, final WebhookEvents callbacks) throws IOException {
         Map<String, Object>result =  new HashMap<>();
         final Gson gson = new Gson();
         final String userId = pack + "." + block + "_" + this.project + ":" + this.key;
+        String url = RapidApiConnect.callbackBaseUrl() + "/api/get_token?user_id=" + userId + "&params=" + gson.toJson(parameters);
         Request request = new Request.Builder()
-                .url("http://192.168.1.238:4000/api/get_token?user_id=" + userId + "&params=" + gson.toJson(parameters))
+                .url(url)
                 .addHeader("User-Agent", "RapidAPIConnect_Java")
                 .addHeader("Authorization", Credentials.basic(this.project, this.key))
                 .get()
@@ -165,12 +146,11 @@ public class RapidApiConnect {
             Map<String, Object> map = gson.fromJson(response.body().string(), new TypeToken<Map<String, Object>>(){}.getType());
             URI uri;
             try {
-                String url = "ws://192.168.1.238:4000/socket/websocket?token=" + map.get("token");
-                uri = new URI(url);
+                String socket_url = RapidApiConnect.websocketBaseUrl() + "/socket/websocket?token=" + map.get("token");
+                uri = new URI(socket_url);
                 WebSocketClient mWebSocketClient = new WebSocketClient(uri, new Draft_10()) {
                     @Override
                     public void onOpen(ServerHandshake serverHandshake) {
-                        Log.i("Websocket", "Opened");
                         Map join = new HashMap<String, String>();
                         join.put("topic", "users_socket:" + userId);
                         join.put("event", "phx_join");
@@ -181,7 +161,6 @@ public class RapidApiConnect {
 
                     @Override
                     public void onMessage(String s) {
-                        //Map<String, Object> message = gson.fromJson(s, new TypeToken<Map<String, Object>>(){}.getType());
                         JsonElement message = new JsonParser().parse(s);
                         if (!message.getAsJsonObject().get("event").getAsString().startsWith("phx_")) {
                             JsonElement body = message.getAsJsonObject().get("payload").getAsJsonObject().get("body");
@@ -196,7 +175,7 @@ public class RapidApiConnect {
 
                     @Override
                     public void onError(Exception e) {
-                        Log.i("Websocket", "Error " + e.getMessage());
+                        callbacks.onError(e);
                     }
                 };
                 mWebSocketClient.connect();

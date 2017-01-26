@@ -117,7 +117,7 @@ After setting up the webhook, you can listen to real-time events via websockets 
         }
     }
     
-    protected Map doInBackground(String... params) {
+    protected String doInBackground(String... params) {
         RapidApiConnect connect = new RapidApiConnect("Dashboard", "0b7f82c1-cf1d-4e02-af9a-de129afe54b2");
 
         Map<String, String> parameters = new HashMap<String, String>();
@@ -132,7 +132,7 @@ After setting up the webhook, you can listen to real-time events via websockets 
         } catch(Exception e) {
             System.out.println("!!!Error: " + e);
         }
-        return response;
+        return "";
     }
         
 ##Issues:
