@@ -1,13 +1,19 @@
 package com.rapidapi.rapidconnect;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
 import java.io.IOException;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import org.phoenixframework.channels.*;
 
 import okhttp3.Credentials;
 import okhttp3.MediaType;
@@ -23,6 +29,12 @@ public class RapidApiConnect {
   private final String project;
   private final String key;
 
+    public interface WebhookEvents {
+        void onMessage(JsonElement msg);
+        void onClose(int code, String reason);
+        void onError(Exception e);
+    };
+    
   public RapidApiConnect(String project, String key) {
     this.client = new OkHttpClient();
     this.project = project;
@@ -50,6 +62,10 @@ public class RapidApiConnect {
   {
     return RapidApiConnect.getBaseUrl() + "/" + pack + "/" + block;
   }
+
+    private static String callbackBaseUrl() { return "https://webhooks.rapidapi.io"; }
+
+    private static String websocketBaseUrl() { return "wss://webhooks.rapidapi.io"; }
 
   /**
   * Call a block
@@ -111,4 +127,53 @@ public class RapidApiConnect {
       }
     }
   }
+
+    public Map listen(String pack, String block, Map<String, String> parameters, final WebhookEvents callbacks) throws IOException {
+        Map<String, Object>result =  new HashMap<>();
+        final Gson gson = new Gson();
+        final String userId = pack + "." + block + "_" + this.project + ":" + this.key;
+        String url = RapidApiConnect.callbackBaseUrl() + "/api/get_token?user_id=" + userId + "&params=" + gson.toJson(parameters);
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("User-Agent", "RapidAPIConnect_Java")
+                .addHeader("Authorization", Credentials.basic(this.project, this.key))
+                .get()
+                .build();
+
+        try (Response response = this.client.newCall(request).execute()) {
+            Map<String, Object> map = gson.fromJson(response.body().string(), new TypeToken<Map<String, Object>>(){}.getType());
+            try {
+                String socket_url = RapidApiConnect.websocketBaseUrl() + "/socket/websocket?token=" + map.get("token");
+                Socket socket;
+                Channel channel;
+
+                socket = new Socket(socket_url);
+                socket.connect();
+                ObjectNode node = new ObjectNode(JsonNodeFactory.instance)
+                        .put("token", "ydt3vFyVEoW51ZFCC2i5QKab");
+                channel = socket.chan("users_socket:" + userId, node);
+                channel.join()
+                        .receive("ok", new IMessageCallback() {
+                            @Override
+                            public void onMessage(Envelope envelope) {
+                                System.out.println(envelope.toString());
+                            }
+                        });
+
+                channel.on("new_msg", new IMessageCallback() {
+                    @Override
+                    public void onMessage(Envelope envelope) {
+                        callbacks.onMessage(envelope.getPayload().get("body"));
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return result;
+    }
 }
