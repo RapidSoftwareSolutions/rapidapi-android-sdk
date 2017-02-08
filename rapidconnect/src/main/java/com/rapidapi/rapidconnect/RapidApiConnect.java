@@ -1,21 +1,19 @@
 package com.rapidapi.rapidconnect;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
-
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.drafts.Draft_10;
-import org.java_websocket.handshake.ServerHandshake;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import org.phoenixframework.channels.*;
 
 import okhttp3.Credentials;
 import okhttp3.MediaType;
@@ -129,7 +127,7 @@ public class RapidApiConnect {
       }
     }
   }
-    
+
     public Map listen(String pack, String block, Map<String, String> parameters, final WebhookEvents callbacks) throws IOException {
         Map<String, Object>result =  new HashMap<>();
         final Gson gson = new Gson();
@@ -144,45 +142,36 @@ public class RapidApiConnect {
 
         try (Response response = this.client.newCall(request).execute()) {
             Map<String, Object> map = gson.fromJson(response.body().string(), new TypeToken<Map<String, Object>>(){}.getType());
-            URI uri;
             try {
                 String socket_url = RapidApiConnect.websocketBaseUrl() + "/socket/websocket?token=" + map.get("token");
-                uri = new URI(socket_url);
-                WebSocketClient mWebSocketClient = new WebSocketClient(uri, new Draft_10()) {
-                    @Override
-                    public void onOpen(ServerHandshake serverHandshake) {
-                        Map join = new HashMap<String, String>();
-                        join.put("topic", "users_socket:" + userId);
-                        join.put("event", "phx_join");
-                        join.put("payload", new HashMap<>());
-                        join.put("ref", 1);
-                        this.send(gson.toJson(join));
-                    }
+                Socket socket;
+                Channel channel;
 
-                    @Override
-                    public void onMessage(String s) {
-                        JsonElement message = new JsonParser().parse(s);
-                        if (!message.getAsJsonObject().get("event").getAsString().startsWith("phx_")) {
-                            JsonElement body = message.getAsJsonObject().get("payload").getAsJsonObject().get("body");
-                            callbacks.onMessage(body);
-                        }
-                    }
+                socket = new Socket(socket_url);
+                socket.connect();
+                ObjectNode node = new ObjectNode(JsonNodeFactory.instance)
+                        .put("token", "ydt3vFyVEoW51ZFCC2i5QKab");
+                channel = socket.chan("users_socket:" + userId, node);
+                channel.join()
+                        .receive("ok", new IMessageCallback() {
+                            @Override
+                            public void onMessage(Envelope envelope) {
+                                System.out.println(envelope.toString());
+                            }
+                        });
 
+                channel.on("new_msg", new IMessageCallback() {
                     @Override
-                    public void onClose(int i, String s, boolean b) {
-                        callbacks.onClose(i, s);
+                    public void onMessage(Envelope envelope) {
+                        callbacks.onMessage(envelope.getPayload().get("body"));
                     }
-
-                    @Override
-                    public void onError(Exception e) {
-                        callbacks.onError(e);
-                    }
-                };
-                mWebSocketClient.connect();
-            } catch (URISyntaxException e) {
+                });
+            } catch (Exception e) {
                 e.printStackTrace();
             }
 
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
 
         return result;
