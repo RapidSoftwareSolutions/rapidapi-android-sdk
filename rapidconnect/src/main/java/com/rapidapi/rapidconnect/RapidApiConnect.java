@@ -141,7 +141,7 @@ public class RapidApiConnect {
                 .build();
 
         try (Response response = this.client.newCall(request).execute()) {
-            Map<String, Object> map = gson.fromJson(response.body().string(), new TypeToken<Map<String, Object>>(){}.getType());
+            final Map<String, Object> map = gson.fromJson(response.body().string(), new TypeToken<Map<String, Object>>(){}.getType());
             try {
                 String socket_url = RapidApiConnect.websocketBaseUrl() + "/socket/websocket?token=" + map.get("token");
                 Socket socket;
@@ -163,7 +163,9 @@ public class RapidApiConnect {
                 channel.on("new_msg", new IMessageCallback() {
                     @Override
                     public void onMessage(Envelope envelope) {
-                        callbacks.onMessage(envelope.getPayload().get("body"));
+                        if (map.get("token") == envelope.getPayload().get("token")) {
+                            callbacks.onMessage(envelope.getPayload().get("body"));
+                        }
                     }
                 });
             } catch (Exception e) {
