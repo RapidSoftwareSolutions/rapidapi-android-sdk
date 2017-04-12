@@ -151,7 +151,7 @@ public class RapidApiConnect {
                 socket = new Socket(socket_url);
                 socket.connect();
                 ObjectMapper mapper = new ObjectMapper();
-                channel = socket.chan("users_socket:" + userId, mapper.convertValue(parameters, JsonNode.class));
+                channel = socket.chan("users_socket:" + token, mapper.convertValue(parameters, JsonNode.class));
                 channel.join()
                         .receive("ok", new IMessageCallback() {
                             @Override
@@ -165,7 +165,7 @@ public class RapidApiConnect {
                     public void onMessage(Envelope envelope) {
                         if (envelope.getPayload().get("token") == null) {
                             callbacks.onError("Token error");
-                        } else if (token.equals(envelope.getPayload().get("token").asText())) {
+                        } else {
                             callbacks.onMessage(envelope.getPayload().get("body"));
                         }
                     }
